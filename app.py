@@ -7,6 +7,7 @@ Access via browser at http://localhost:5000
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from flask import Flask, jsonify, request, render_template_string
 from engine import GuesslyEngine, load_database, save_database, Entity, Question, VALID_ANSWERS
@@ -236,4 +237,5 @@ def get_engine_state():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode)
