@@ -206,7 +206,7 @@ HTML = f"""<!DOCTYPE html>
         <button class="btn secondary" onclick="showAbout()">About</button>
         <button class="btn secondary" onclick="exportDB()">Export DB</button>
         <button class="btn secondary" onclick="document.getElementById('file-input').click()">Import DB</button>
-        <button class="btn secondary" onclick="showGitHubSettings()">GitHub Settings</button>
+        <button class="btn secondary" onclick="showGitHubSettings()">GitHub</button>
       </div>
     </div>
 
@@ -230,6 +230,7 @@ HTML = f"""<!DOCTYPE html>
   const EMBEDDED_GH_CONFIG = {GH_CONFIG_JSON};
   const STORAGE_KEY = 'guessly_db_v1';
   const GH_CONFIG_KEY = 'guessly_github_config';
+  const GH_TOKEN_KEY = 'guessly_github_token';
   const GH_RATE_LIMIT_MS = 30000;
   const GH_MAX_NEW_ENTITIES = 50;
 
@@ -265,6 +266,123 @@ HTML = f"""<!DOCTYPE html>
     try {{
       localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(config));
     }} catch (e) {{}}
+  }}
+
+  function getGitHubToken() {{
+    try {{
+      const raw = localStorage.getItem(GH_TOKEN_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (data.expires_at && Date.now() >= data.expires_at) {{
+        localStorage.removeItem(GH_TOKEN_KEY);
+        return null;
+      }}
+      return data.access_token;
+    }} catch (e) {{
+      return null;
+    }}
+  }}
+
+  function saveGitHubToken(access_token, expires_in) {{
+    try {{
+      const expiresAt = Date.now() + (expires_in * 1000) - 60000;
+      localStorage.setItem(GH_TOKEN_KEY, JSON.stringify({{ access_token, expires_at: expiresAt }}));
+    }} catch (e) {{}}
+  }}
+
+  function clearGitHubToken() {{
+    try {{
+      localStorage.removeItem(GH_TOKEN_KEY);
+    }} catch (e) {{}}
+  }}
+
+  async function startGitHubDeviceFlow() {{
+    const config = getGitHubConfig() || {{ ...EMBEDDED_GH_CONFIG }};
+    const clientId = config.oauth_client_id || EMBEDDED_GH_CONFIG.oauth_client_id;
+    if (!clientId) {{
+      alert('GitHub OAuth App is not configured. Set oauth_client_id in github_config.json.');
+      return;
+    }}
+
+    setStatus('Requesting GitHub authorization...');
+    try {{
+      const res = await fetch('https://github.com/login/device/code', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json', Accept: 'application/json' }},
+        body: JSON.stringify({{ client_id: clientId, scope: 'repo' }}),
+      }});
+      if (!res.ok) throw new Error('Failed to start device flow');
+      const data = await res.json();
+
+      const area = document.getElementById('main-area');
+      area.innerHTML = `
+        <div class="guess">Connect GitHub</div>
+        <p style="opacity:.85; line-height:1.6;">
+          To enable auto-sync, authorize Guessly on GitHub.<br>
+          1. Copy the code below<br>
+          2. Visit <a href="${{data.verification_uri}}" target="_blank">${{data.verification_uri}}</a><br>
+          3. Paste the code and approve<br>
+          <br>
+          <b style="font-size:18px;">${{data.user_code}}</b>
+        </p>
+        <p class="meta">This site will now poll for approval...</p>
+      `;
+      setStatus('Waiting for GitHub approval...');
+
+      await pollForGitHubToken(clientId, data.device_code, data.interval);
+    }} catch (err) {{
+      console.error(err);
+      alert('GitHub connection failed: ' + err.message);
+      setStatus('GitHub connection failed');
+    }}
+  }}
+
+  async function pollForGitHubToken(clientId, deviceCode, interval) {{
+    const maxAttempts = 12;
+    const waitMs = Math.max(interval * 1000, 5000);
+
+    for (let i = 0; i < maxAttempts; i++) {{
+      await new Promise(r => setTimeout(r, waitMs));
+      try {{
+        const res = await fetch('https://github.com/login/oauth/access_token', {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/json', Accept: 'application/json' }},
+          body: JSON.stringify({{
+            client_id: clientId,
+            device_code: deviceCode,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+          }}),
+        }});
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.access_token) {{
+          saveGitHubToken(data.access_token, data.expires_in || 3600);
+          setStatus('GitHub connected');
+          document.getElementById('stat-gh').textContent = 'ok';
+          autoloadGitHub();
+          return;
+        }}
+        if (data.error === 'authorization_pending') {{
+          setStatus('Waiting for approval...');
+          continue;
+        }}
+        if (data.error === 'slow_down') {{
+          await new Promise(r => setTimeout(r, 5000));
+          continue;
+        }}
+        throw new Error(data.error_description || data.error);
+      }} catch (err) {{
+        console.error('Poll error:', err);
+      }}
+    }}
+    setStatus('GitHub connection timed out');
+    alert('GitHub authorization timed out. Please try again.');
+  }}
+
+  function getGitHubAuthHeader() {{
+    const token = getGitHubToken();
+    if (!token) return {{}};
+    return {{ Authorization: `Bearer ${{token}}` }};
   }}
 
   function getGitHubRawUrl(config) {{

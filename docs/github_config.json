@@ -3,6 +3,7 @@
   "repo": "Akinator-Game-edition",
   "branch": "main",
   "path": "database.json",
+  "oauth_client_id": "",
   "autoSync": true,
   "rateLimitMs": 30000,
   "maxNewEntitiesPerSync": 50
