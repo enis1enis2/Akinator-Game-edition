@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+test-results/
+
+# Lint / type-check caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
+
+# Bandit / scan outputs
+bandit.json
+osv-scanner.toml
+
+# Build artifacts
+dist/
+build/
+
+# Local database mutations (seed DB is committed as database.json)
+# Uncomment if you want local edits ignored:
+# database.json
+
+# Kilo / AI coding configs (if any)
+.kilo/
