@@ -20,6 +20,45 @@ app = Flask(__name__)
 entities, questions = load_database(DB_PATH)
 engine = GuesslyEngine(entities, questions)
 
+
+@app.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": "Bad request", "message": str(e)}), 400
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "Method not allowed"}), 405
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    app.logger.error(f"Unhandled exception: {e}", exc_info=True)
+    return jsonify({"error": "Internal server error"}), 500
+
+
+def _get_json():
+    data = request.get_json(silent=True)
+    if data is None:
+        raise ValueError("Request body must be valid JSON")
+    return data
+
+
+def _validate_answer(answer):
+    if answer not in VALID_ANSWERS:
+        raise ValueError(f"Invalid answer: {answer}")
+    return answer
+
+
+@app.errorhandler(ValueError)
+def handle_value_error(e):
+    return jsonify({"error": "Bad request", "message": str(e)}), 400
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -31,8 +70,12 @@ def api_reset():
 
 @app.route("/api/answer", methods=["POST"])
 def api_answer():
-    data = request.json or {}
-    engine.answer(data["question_id"], data["answer"])
+    data = _get_json()
+    answer = _validate_answer(data.get("answer", ""))
+    question_id = data.get("question_id", "")
+    if not question_id:
+        return jsonify({"error": "question_id is required"}), 400
+    engine.answer(question_id, answer)
     return get_engine_state()
 
 @app.route("/api/eliminate", methods=["POST"])
@@ -45,7 +88,7 @@ def api_eliminate():
 @app.route("/api/learn", methods=["POST"])
 def api_learn():
     """Reinforcement step: Updates or creates an entity based on user feedback."""
-    data = request.json or {}
+    data = _get_json()
     char_name = data.get("name", "").strip()
     if not char_name:
         return jsonify({"error": "Invalid name"}), 400

@@ -11,6 +11,8 @@
         input { background: #121212; color: #00ff66; border: 1px solid #00ff66; padding: 8px; width: 80%; }
         .bar-bg { background: #333; height: 12px; width: 100%; border-radius: 6px; overflow: hidden; }
         .bar-fill { background: #00ff66; height: 100%; width: 0%; transition: width 0.3s; }
+        .confidence-bar { background: #333; height: 16px; width: 100%; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        .confidence-fill { background: #00ff66; height: 100%; width: 0%; transition: width 0.5s ease; }
     </style>
 </head>
 <body>
@@ -28,6 +30,16 @@
     </div>
 
     <script>
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         let currentQuestionId = null;
 
         async function startGame() {
@@ -53,9 +65,9 @@
             } else {
                 let res = await fetch('/api/eliminate', { method: 'POST' });
                 let data = await res.json();
-                if (data.status === 'guess') {
+                if (data.status === 'guess' && data.guess) {
                     showGuess(data.guess, data.confidence);
-                } else if (data.status === 'question') {
+                } else if (data.status === 'question' && data.question) {
                     showQuestion(data.question);
                 } else {
                     showFeedbackForm();
@@ -65,9 +77,9 @@
 
         function nextStep(data) {
             updateStats(data.top_candidates);
-            if (data.status === 'guess') {
+            if (data.status === 'guess' && data.guess) {
                 showGuess(data.guess, data.confidence);
-            } else if (data.status === 'question') {
+            } else if (data.status === 'question' && data.question) {
                 showQuestion(data.question);
             } else {
                 showFeedbackForm();
@@ -77,7 +89,7 @@
         function showQuestion(q) {
             currentQuestionId = q.id;
             document.getElementById('game-box').innerHTML = `
-                <h3>${q.text}</h3>
+                <h3>${escapeHtml(q.text)}</h3>
                 <button onclick="submitAnswer('yes')">Yes</button>
                 <button onclick="submitAnswer('probably')">Probably</button>
                 <button onclick="submitAnswer('dont_know')">Don't Know</button>
@@ -88,8 +100,9 @@
 
         function showGuess(guess, confidence) {
             document.getElementById('game-box').innerHTML = `
-                <h3>Is your character: <u>${guess.name}</u>?</h3>
+                <h3>Is your character: <u>${escapeHtml(guess.name)}</u>?</h3>
                 <p>Confidence: ${(confidence * 100).toFixed(1)}%</p>
+                <div class="confidence-bar"><div class="confidence-fill" style="width:${confidence * 100}%"></div></div>
                 <button onclick="resolveGuess(true)">Yes, That's Correct!</button>
                 <button onclick="resolveGuess(false)">No, Wrong Guess</button>
             `;
@@ -114,14 +127,14 @@
                 body: JSON.stringify({ name: name })
             });
             let data = await res.json();
-            document.getElementById('game-box').innerHTML = `<p>${data.message}</p><button onclick="startGame()">Play Again</button>`;
+            document.getElementById('game-box').innerHTML = `<p>${escapeHtml(data.message)}</p><button onclick="startGame()">Play Again</button>`;
         }
 
         function updateStats(candidates) {
             let html = '';
             candidates.forEach(c => {
                 let pct = (c.probability * 100).toFixed(1);
-                html += `<div>${c.name}: ${pct}%<div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;
+                html += `<div>${escapeHtml(c.name)}: ${pct}%<div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;
             });
             document.getElementById('top-candidates').innerHTML = html;
         }

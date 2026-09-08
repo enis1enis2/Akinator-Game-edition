@@ -3318,6 +3318,8 @@
       "id": "the_guy_that_always_press_yes",
       "name": "The guy  that always press yes",
       "category": "crowdsourced",
+      "aliases": [],
+      "notes": "",
       "probs": {
         "q_child_or_teen": 0.7,
         "q_alien_or_other_world": 0.7,
@@ -3344,13 +3346,14 @@
         "q_sci_fi_setting": 0.7,
         "q_modern_setting": 0.7,
         "q_medieval_fantasy_setting": 0.7
-      },
-      "aliases": []
+      }
     },
     {
       "id": "the_guy_that_always_presses_no",
       "name": "The guy that always presses no",
       "category": "crowdsourced",
+      "aliases": [],
+      "notes": "",
       "probs": {
         "q_child_or_teen": 0.3,
         "q_amnesia_mystery_identity": 0.3,
@@ -3377,13 +3380,14 @@
         "q_has_sidekick": 0.3,
         "q_animal_companion": 0.3,
         "q_recent_character": 0.3
-      },
-      "aliases": []
+      }
     },
     {
       "id": "the_guy_that_always_press_probably",
       "name": "The guy that always press probably",
       "category": "crowdsourced",
+      "aliases": [],
+      "notes": "",
       "probs": {
         "q_child_or_teen": 1,
         "q_alien_or_other_world": 1,
@@ -3413,8 +3417,17 @@
         "q_medieval_fantasy_setting": 0.7,
         "q_sci_fi_setting": 0.7,
         "q_multiple_games_series": 0.7
-      },
-      "aliases": []
+      }
+    },
+    {
+      "id": "testchar",
+      "name": "TestChar",
+      "category": "crowdsourced",
+      "aliases": [],
+      "notes": "",
+      "probs": {
+        "q_fictional": 0.7
+      }
     }
   ]
 }

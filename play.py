@@ -49,8 +49,13 @@ def main() -> int:
             if engine.should_guess():
                 break
 
+            top = engine.top_candidates(1)
+            if top:
+                print(f"{CYAN}Top candidate: {top[0][0].name} ({top[0][1] * 100:.1f}%){RESET}")
+            remaining = DEFAULT_MAX_QUESTIONS - len(engine.asked)
+            print(f"{YELLOW}Questions remaining: {remaining}{RESET}")
             print(f"{BOLD}Q:{RESET} {q.text}")
-            ans = prompt("([y]es / [p]robably / [d]on't know / [p]robably [n]ot / [n]o)")
+            ans = prompt("([y]es / [p]robably / [d]on't know / [n]o / [p]robably [n]ot)").strip()
             if ans not in VALID_ANSWERS:
                 print(f"{RED}Invalid answer. Use yes, probably, dont_know, probably_not, no.{RESET}")
                 continue

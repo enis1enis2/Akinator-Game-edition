@@ -217,6 +217,10 @@ HTML = f"""<!DOCTYPE html>
         <div class="meta">Live candidates</div>
         <div id="candidates"></div>
       </div>
+      <div class="candidates hidden" id="history-box">
+        <div class="meta">Game history</div>
+        <div id="history"></div>
+      </div>
     </div>
 
     <footer>
@@ -741,6 +745,16 @@ HTML = f"""<!DOCTYPE html>
     }}
   }}
 
+  function escapeHtml(str) {{
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }}
+
   function el(tag, cls, html) {{
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -762,8 +776,24 @@ HTML = f"""<!DOCTYPE html>
     top.forEach(([entity, prob]) => {{
       const pct = (prob * 100).toFixed(1);
       const row = el('div', 'candidate', `
-        <div class="candidate-name">${{entity.name}} · ${{pct}}%</div>
+        <div class="candidate-name">${{escapeHtml(entity.name)}} · ${{pct}}%</div>
         <div class="bar-bg"><div class="bar-fill" style="width:${{pct}}%"></div></div>
+      `);
+      container.appendChild(row);
+    }});
+  }}
+
+  function renderHistory() {{
+    const box = document.getElementById('history-box');
+    const container = document.getElementById('history');
+    if (!engine || !engine.history.length) {{ box.classList.add('hidden'); return; }}
+    box.classList.remove('hidden');
+    container.innerHTML = '';
+    engine.history.forEach(([qid, ans]) => {{
+      const q = questions[qid];
+      if (!q) return;
+      const row = el('div', 'candidate', `
+        <div class="candidate-name">${{escapeHtml(q.text)}} → <b>${{escapeHtml(ans)}}</b></div>
       `);
       container.appendChild(row);
     }});
@@ -785,12 +815,13 @@ HTML = f"""<!DOCTYPE html>
     }});
     area.appendChild(row);
     renderCandidates();
+    renderHistory();
   }}
 
   function showGuess(entity, confidence) {{
     const area = document.getElementById('main-area');
     area.innerHTML = '';
-    const g = el('div', 'guess', `Is your character: <u>${{entity.name}}</u>?`);
+    const g = el('div', 'guess', `Is your character: <u>${{escapeHtml(entity.name)}}</u>?`);
     const c = el('div', 'confidence', `Confidence: ${{(confidence * 100).toFixed(1)}}%`);
     const row = el('div', '');
     const y = el('button', 'btn', 'Yes, correct!');
@@ -803,12 +834,13 @@ HTML = f"""<!DOCTYPE html>
     area.appendChild(c);
     area.appendChild(row);
     renderCandidates();
+    renderHistory();
   }}
 
   function showGiveUp(bestEntity, confidence) {{
     const area = document.getElementById('main-area');
     area.innerHTML = '';
-    const msg = el('div', '', `I give up! Best guess: <b>${{bestEntity.name}}</b> (${{(confidence*100).toFixed(1)}}%)`);
+    const msg = el('div', '', `I give up! Best guess: <b>${{escapeHtml(bestEntity.name)}}</b> (${{(confidence*100).toFixed(1)}}%)`);
     const label = el('div', '', 'Who was your character?');
     const input = el('input', '');
     input.placeholder = 'Enter name, e.g. Master Chief';
@@ -825,6 +857,7 @@ HTML = f"""<!DOCTYPE html>
     area.appendChild(input);
     area.appendChild(row);
     renderCandidates();
+    renderHistory();
   }}
 
   function showAbout() {{
@@ -852,6 +885,7 @@ HTML = f"""<!DOCTYPE html>
     engine = new GuesslyEngine(entities, questions);
     engine.reset();
     setStatus('Playing...');
+    renderHistory();
     nextStep();
   }}
 
@@ -867,7 +901,12 @@ HTML = f"""<!DOCTYPE html>
       setStatus('Correct guess');
     }} else {{
       if (!engine) return;
-      engine.eliminate(engine.topCandidates(1)[0][0].id);
+      const top = engine.topCandidates(1);
+      if (!top.length) {{
+        setStatus('No candidates remaining');
+        return;
+      }}
+      engine.eliminate(top[0][0].id);
       if (engine.shouldGuess()) {{
         const [e, p] = engine.topCandidates(1)[0];
         showGuess(e, p);
@@ -899,21 +938,28 @@ HTML = f"""<!DOCTYPE html>
     saveDB(list);
     learnedCount = list.filter(e => e.category === 'crowdsourced').length;
     document.getElementById('stat-learned').textContent = learnedCount;
-    document.getElementById('main-area').innerHTML = `<div class="guess">Learned '${{name}}'. Saved locally.</div><button class="btn" onclick="startGame()">Play Again</button>`;
+    document.getElementById('main-area').innerHTML = `<div class="guess">Learned '${{escapeHtml(name)}}'. Saved locally.</div><button class="btn" onclick="startGame()">Play Again</button>`;
     setStatus('Learned new entity');
-    autoSyncToGitHub();
+    autoSyncToGitHub().catch(err => {{
+      console.error('Auto-sync failed:', err);
+      setStatus('Learned locally (sync failed)');
+    }});
   }}
 
   function nextStep() {{
     if (!engine) return;
     if (engine.shouldGuess()) {{
-      const [e, p] = engine.topCandidates(1)[0];
+      const top = engine.topCandidates(1);
+      if (!top.length) {{ setStatus('No candidates'); return; }}
+      const [e, p] = top[0];
       showGuess(e, p);
       setStatus('Guess');
       return;
     }}
     if (engine.isExhausted()) {{
-      const [e, p] = engine.topCandidates(1)[0];
+      const top = engine.topCandidates(1);
+      if (!top.length) {{ setStatus('No candidates'); return; }}
+      const [e, p] = top[0];
       showGiveUp(e, p);
       setStatus('Gave up');
       return;
@@ -924,7 +970,9 @@ HTML = f"""<!DOCTYPE html>
       showQuestion(q);
       setStatus('Question');
     }} else {{
-      const [e, p] = engine.topCandidates(1)[0];
+      const top = engine.topCandidates(1);
+      if (!top.length) {{ setStatus('No candidates'); return; }}
+      const [e, p] = top[0];
       showGiveUp(e, p);
       setStatus('Gave up');
     }}

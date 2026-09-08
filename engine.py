@@ -81,6 +81,7 @@ class GuesslyEngine:
         self.belief = dict(belief)
         self.asked = list(asked)
         self.history = list(history)
+        self.eliminated = set()
 
     # ---------- question selection ----------
 
@@ -112,8 +113,6 @@ class GuesslyEngine:
         if not candidates:
             return None
         scored = sorted(candidates, key=self._entropy_score, reverse=True)
-        # Small randomization among near-top questions so repeated games
-        # of the same character don't feel robotic/identical.
         top_n = scored[:5] if len(scored) >= 5 else scored
         top_scores = [self._entropy_score(q) for q in top_n]
         best = max(top_scores)
