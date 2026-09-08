@@ -179,7 +179,6 @@ HTML = f"""<!DOCTYPE html>
   </div>
 
 <script>
-(() => {{
   const QUESTIONS = {QUESTIONS_JSON};
   const SEED_ENTITIES = {ENTITIES_JSON};
   const STORAGE_KEY = 'guessly_db_v1';
@@ -547,7 +546,6 @@ HTML = f"""<!DOCTYPE html>
   let currentQuestionId = null;
 
   init();
-}})();
 </script>
 </body>
 </html>
