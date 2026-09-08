@@ -1,0 +1,9 @@
+{
+  "owner": "enispolat",
+  "repo": "Akinater",
+  "branch": "main",
+  "path": "database.json",
+  "autoSync": true,
+  "rateLimitMs": 30000,
+  "maxNewEntitiesPerSync": 50
+}

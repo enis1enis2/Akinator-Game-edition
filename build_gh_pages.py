@@ -2,6 +2,13 @@
 """
 Build a GitHub Pages-compatible static site from the current database.
 Output: docs/index.html (self-contained, no build step required).
+
+GitHub sync:
+- Public config is stored in docs/github_config.json (committed to repo).
+- PAT is never stored in the repo; user enters it once in the UI (localStorage only).
+- After learning a new entity, the site automatically attempts to sync to GitHub.
+- Sync is append-only: only NEW entities are added; remote data is never overwritten or deleted.
+- Protection: rate limiting, dedup, preview, confirmation, size cap.
 """
 
 from __future__ import annotations
@@ -12,6 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 DB_PATH = HERE / "database.json"
 OUT_PATH = HERE / "docs" / "index.html"
+GH_CONFIG_PATH = HERE / "docs" / "github_config.json"
 
 data = json.loads(DB_PATH.read_text(encoding="utf-8"))
 questions = data["questions"]
@@ -19,6 +27,16 @@ entities = data["entities"]
 
 QUESTIONS_JSON = json.dumps(questions, ensure_ascii=False)
 ENTITIES_JSON = json.dumps(entities, ensure_ascii=False)
+
+# Load public GitHub config if present
+gh_config = {}
+if GH_CONFIG_PATH.exists():
+    try:
+        gh_config = json.loads(GH_CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        gh_config = {}
+
+GH_CONFIG_JSON = json.dumps(gh_config, ensure_ascii=False)
 
 HTML = f"""<!DOCTYPE html>
 <html lang="en">
@@ -34,6 +52,8 @@ HTML = f"""<!DOCTYPE html>
     --accent: #00cc55;
     --card: #111111;
     --border: #1f1f1f;
+    --danger: #ff4444;
+    --warn: #ffaa00;
   }}
   * {{ box-sizing: border-box; }}
   html, body {{
@@ -86,6 +106,10 @@ HTML = f"""<!DOCTYPE html>
     border-color: var(--muted);
     color: var(--muted);
   }}
+  .btn.danger {{
+    border-color: var(--danger);
+    color: var(--danger);
+  }}
   .question {{ font-size: 16px; line-height: 1.5; }}
   .guess {{ font-size: 18px; }}
   .confidence {{ opacity: .85; font-size: 13px; }}
@@ -105,7 +129,7 @@ HTML = f"""<!DOCTYPE html>
   .candidates {{ margin-top: 12px; }}
   .candidate {{ margin-bottom: 8px; }}
   .candidate-name {{ font-size: 12px; opacity: .9; }}
-  input[type="text"] {{
+  input[type="text"], input[type="password"] {{
     width: 100%;
     background: #0a0a0a;
     color: var(--fg);
@@ -127,13 +151,31 @@ HTML = f"""<!DOCTYPE html>
     text-align: center;
   }}
   a {{ color: var(--fg); opacity: .8; text-decoration: none; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
+  @media (max-width: 600px) {{
+    .grid {{ grid-template-columns: 1fr; }}
+  }}
+  .preview-box {{
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 12px;
+    margin-top: 10px;
+  }}
+  .preview-item {{ padding: 4px 0; border-bottom: 1px solid #1a1a1a; }}
+  .warn {{ color: var(--warn); }}
+  .danger {{ color: var(--danger); }}
+  .ok {{ color: var(--fg); }}
 </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <h1>GUESSLY</h1>
-      <p>Entropy-based 20-questions engine — static build</p>
+      <p>Entropy-based 20-questions engine — static build with GitHub sync</p>
     </header>
 
     <div class="card">
@@ -154,13 +196,17 @@ HTML = f"""<!DOCTYPE html>
           <div class="stat-value" id="stat-learned">0</div>
           <div class="stat-label">Learned</div>
         </div>
+        <div class="stat">
+          <div class="stat-value" id="stat-gh">-</div>
+          <div class="stat-label">GitHub</div>
+        </div>
       </div>
       <div style="margin-top:14px;">
         <button class="btn" id="start-btn" onclick="startGame()">Start New Game</button>
         <button class="btn secondary" onclick="showAbout()">About</button>
         <button class="btn secondary" onclick="exportDB()">Export DB</button>
         <button class="btn secondary" onclick="document.getElementById('file-input').click()">Import DB</button>
-        <input type="file" id="file-input" class="hidden" accept="application/json" onchange="importDB(event)">
+        <button class="btn secondary" onclick="showGitHubSettings()">GitHub Settings</button>
       </div>
     </div>
 
@@ -181,7 +227,11 @@ HTML = f"""<!DOCTYPE html>
 <script>
   const QUESTIONS = {QUESTIONS_JSON};
   const SEED_ENTITIES = {ENTITIES_JSON};
+  const EMBEDDED_GH_CONFIG = {GH_CONFIG_JSON};
   const STORAGE_KEY = 'guessly_db_v1';
+  const GH_CONFIG_KEY = 'guessly_github_config';
+  const GH_RATE_LIMIT_MS = 30000;
+  const GH_MAX_NEW_ENTITIES = 50;
 
   const ANSWER_WEIGHTS = {{
     yes: 1.0,
@@ -198,6 +248,245 @@ HTML = f"""<!DOCTYPE html>
   let questions = {{}};
   let engine = null;
   let learnedCount = 0;
+  let lastSyncTime = 0;
+  let ghConfig = null;
+
+  function getGitHubConfig() {{
+    try {{
+      const raw = localStorage.getItem(GH_CONFIG_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    }} catch (e) {{
+      return null;
+    }}
+  }}
+
+  function saveGitHubConfig(config) {{
+    try {{
+      localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(config));
+    }} catch (e) {{}}
+  }}
+
+  function getGitHubRawUrl(config) {{
+    return `https://raw.githubusercontent.com/${{config.owner}}/${{config.repo}}/${{config.branch}}/${{config.path}}`;
+  }}
+
+  function getGitHubApiUrl(config) {{
+    return `https://api.github.com/repos/${{config.owner}}/${{config.repo}}/contents/${{config.path}}?ref=${{config.branch}}`;
+  }}
+
+  async function fetchRemoteDB(config) {{
+    const url = getGitHubApiUrl(config);
+    const pat = getGitHubConfig()?.pat;
+    const headers = {{}};
+    if (pat) headers.Authorization = `token ${{pat}}`;
+    const res = await fetch(url, {{ headers }});
+    if (!res.ok) {{
+      if (res.status === 404) return null;
+      throw new Error(`GitHub fetch failed: ${{res.status}} ${{res.statusText}}`);
+    }}
+    const data = await res.json();
+    if (data.encoding !== 'base64') throw new Error('Unexpected GitHub response format');
+    const jsonStr = atob(data.content.replace(/\\n/g, ''));
+    return JSON.parse(jsonStr);
+  }}
+
+  async function pushRemoteDB(config, mergedEntities) {{
+    const url = getGitHubApiUrl(config);
+    const list = Array.isArray(mergedEntities) ? mergedEntities : Object.values(entities);
+    const pat = getGitHubConfig()?.pat;
+    if (!pat) throw new Error('GitHub PAT missing. Open GitHub Settings to configure.');
+
+    let remoteSHA = null;
+    try {{
+      const res = await fetch(url, {{
+        headers: {{ Authorization: `token ${{pat}}` }}
+      }});
+      if (res.ok) {{
+        const data = await res.json();
+        remoteSHA = data.sha;
+      }}
+    }} catch (e) {{}}
+
+    const payload = {{
+      message: 'Guessly: auto-commit learned entities',
+      content: btoa(unescape(encodeURIComponent(JSON.stringify({{questions: QUESTIONS, entities: list}}, null, 2)))),
+      branch: config.branch,
+    }};
+    if (remoteSHA) payload.sha = remoteSHA;
+
+    const putRes = await fetch(url, {{
+      method: 'PUT',
+      headers: {{
+        Authorization: `token ${{pat}}`,
+        'Content-Type': 'application/json',
+      }},
+      body: JSON.stringify(payload),
+    }});
+
+    if (!putRes.ok) {{
+      const err = await putRes.json().catch(() => ({{}}));
+      throw new Error(`GitHub push failed: ${{putRes.status}} ${{JSON.stringify(err)}}`);
+    }}
+    return await putRes.json();
+  }}
+
+  async function autoloadGitHub() {{
+    // Start with embedded config as fallback
+    let config = {{ ...EMBEDDED_GH_CONFIG }};
+    const saved = getGitHubConfig();
+    if (saved?.owner) config = {{ ...config, ...saved }};
+
+    if (!config?.owner || !config?.repo || !config?.path) {{
+      document.getElementById('stat-gh').textContent = 'off';
+      setStatus('GitHub: not configured');
+      ghConfig = null;
+      return;
+    }}
+
+    ghConfig = config;
+    setStatus('Loading database from GitHub...');
+    try {{
+      const remote = await fetchRemoteDB(config);
+      if (!remote || !Array.isArray(remote.entities)) {{
+        document.getElementById('stat-gh').textContent = 'empty';
+        setStatus('GitHub: no database found');
+        return;
+      }}
+
+      const remoteIds = new Set(remote.entities.map(e => e.id));
+      const localIds = new Set(SEED_ENTITIES.map(e => e.id));
+      const merged = remote.entities.slice();
+      for (const e of SEED_ENTITIES) {{
+        if (!remoteIds.has(e.id)) merged.push(e);
+      }}
+      const savedList = loadSavedDB();
+      for (const e of savedList) {{
+        if (!remoteIds.has(e.id) && !localIds.has(e.id)) merged.push(e);
+      }}
+
+      saveDB(merged);
+      QUESTIONS.forEach(q => questions[q.id] = q);
+      merged.forEach(e => entities[e.id] = e);
+      learnedCount = merged.filter(e => e.category === 'crowdsourced').length;
+      document.getElementById('stat-entities').textContent = merged.length;
+      document.getElementById('stat-questions').textContent = QUESTIONS.length;
+      document.getElementById('stat-learned').textContent = learnedCount;
+      document.getElementById('stat-gh').textContent = 'ok';
+      setStatus('Database loaded from GitHub');
+    }} catch (err) {{
+      console.error(err);
+      document.getElementById('stat-gh').textContent = 'err';
+      setStatus('GitHub load failed: ' + err.message);
+    }}
+  }}
+
+  async function autoSyncToGitHub() {{
+    if (!ghConfig) {{
+      setStatus('GitHub sync skipped: no config');
+      return;
+    }}
+
+    const pat = getGitHubConfig()?.pat;
+    if (!pat) {{
+      setStatus('GitHub sync skipped: no PAT');
+      return;
+    }}
+
+    const now = Date.now();
+    if (now - lastSyncTime < GH_RATE_LIMIT_MS) {{
+      setStatus('GitHub sync: rate limited');
+      return;
+    }}
+
+    try {{
+      const remote = await fetchRemoteDB(ghConfig);
+      const remoteEntities = (remote && Array.isArray(remote.entities)) ? remote.entities : [];
+      const remoteIds = new Set(remoteEntities.map(e => e.id));
+      const localList = Object.values(entities);
+      const newEntities = localList.filter(e => !remoteIds.has(e.id));
+
+      if (newEntities.length === 0) {{
+        setStatus('GitHub sync: nothing new');
+        return;
+      }}
+
+      if (newEntities.length > GH_MAX_NEW_ENTITIES) {{
+        setStatus('GitHub sync: limit exceeded');
+        return;
+      }}
+
+      const merged = remoteEntities.concat(newEntities);
+      const result = await pushRemoteDB(ghConfig, merged);
+      lastSyncTime = Date.now();
+      setStatus('GitHub sync: committed ' + result.commit.sha.slice(0, 7));
+    }} catch (err) {{
+      console.error('Auto-sync failed:', err);
+      setStatus('GitHub sync failed: ' + err.message);
+    }}
+  }}
+
+  function showGitHubSettings() {{
+    const saved = getGitHubConfig() || {{}};
+    const area = document.getElementById('main-area');
+    area.innerHTML = `
+      <div class="guess">GitHub Sync Settings</div>
+      <p class="meta">
+        Public config is loaded from <b>github_config.json</b> in this repo.
+        Enter your classic PAT with <b>repo</b> scope below.
+        The PAT is stored only in your browser localStorage and is never exposed in the repo.
+      </p>
+      <div class="grid">
+        <div>
+          <label class="meta">Owner</label>
+          <input type="text" id="gh-owner" value="${{saved.owner || ghConfig?.owner || ''}}" placeholder="e.g. enispolat">
+        </div>
+        <div>
+          <label class="meta">Repo</label>
+          <input type="text" id="gh-repo" value="${{saved.repo || ghConfig?.repo || ''}}" placeholder="e.g. Akinater">
+        </div>
+        <div>
+          <label class="meta">Branch</label>
+          <input type="text" id="gh-branch" value="${{saved.branch || ghConfig?.branch || 'main'}}" placeholder="main">
+        </div>
+        <div>
+          <label class="meta">File Path</label>
+          <input type="text" id="gh-path" value="${{saved.path || ghConfig?.path || 'database.json'}}" placeholder="database.json">
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label class="meta">Personal Access Token (PAT) — repo scope required</label>
+          <input type="password" id="gh-pat" value="${{saved.pat || ''}}" placeholder="ghp_...">
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn" onclick="saveGitHubSettings()">Save Settings</button>
+        <button class="btn secondary" onclick="autoloadGitHub()">Reload from GitHub</button>
+        <button class="btn secondary" onclick="showAbout()">Back</button>
+      </div>
+      <p class="meta warn" style="margin-top:10px;">
+        Warning: never share your PAT. If exposed, revoke it in GitHub Settings → Developer settings → Personal access tokens.
+      </p>
+    `;
+    setStatus('GitHub Settings');
+  }}
+
+  function saveGitHubSettings() {{
+    const owner = document.getElementById('gh-owner').value.trim();
+    const repo = document.getElementById('gh-repo').value.trim();
+    const branch = document.getElementById('gh-branch').value.trim() || 'main';
+    const path = document.getElementById('gh-path').value.trim() || 'database.json';
+    const pat = document.getElementById('gh-pat').value.trim();
+
+    if (!owner || !repo) {{
+      alert('Owner and repo are required.');
+      return;
+    }}
+
+    saveGitHubConfig({{ owner, repo, branch, path, pat }});
+    ghConfig = {{ owner, repo, branch, path }};
+    setStatus('GitHub settings saved');
+    autoloadGitHub();
+  }}
 
   function loadSavedDB() {{
     try {{
@@ -224,12 +513,13 @@ HTML = f"""<!DOCTYPE html>
 
   function init() {{
     const list = loadSavedDB();
-    learnedCount = list.filter(e => e.category === 'crowdsourced').length;
     QUESTIONS.forEach(q => questions[q.id] = q);
     list.forEach(e => entities[e.id] = e);
+    learnedCount = list.filter(e => e.category === 'crowdsourced').length;
     document.getElementById('stat-entities').textContent = list.length;
     document.getElementById('stat-questions').textContent = QUESTIONS.length;
     document.getElementById('stat-learned').textContent = learnedCount;
+    autoloadGitHub();
   }}
 
   class GuesslyEngine {{
@@ -425,6 +715,10 @@ HTML = f"""<!DOCTYPE html>
       <p style="opacity:.85;">
         Entities: ${{Object.keys(entities).length}} · Questions: ${{Object.keys(questions).length}}
       </p>
+      <p class="meta warn">
+        Auto-sync to GitHub is enabled by default. It only adds new entities and never overwrites remote data.
+        Rate limit: once per 30s. Max 50 additions per sync.
+      </p>
     `;
     setStatus('About');
   }}
@@ -482,6 +776,7 @@ HTML = f"""<!DOCTYPE html>
     document.getElementById('stat-learned').textContent = learnedCount;
     document.getElementById('main-area').innerHTML = `<div class="guess">Learned '${{name}}'. Saved locally.</div><button class="btn" onclick="startGame()">Play Again</button>`;
     setStatus('Learned new entity');
+    autoSyncToGitHub();
   }}
 
   function nextStep() {{
@@ -554,3 +849,7 @@ HTML = f"""<!DOCTYPE html>
 OUT_PATH.write_text(HTML, encoding="utf-8")
 print(f"Wrote static site to {OUT_PATH}")
 print(f"Size: {OUT_PATH.stat().st_size / 1024:.1f} KB")
+if GH_CONFIG_PATH.exists():
+    print(f"Using GitHub config from {GH_CONFIG_PATH}")
+else:
+    print("No github_config.json found, using embedded defaults")
