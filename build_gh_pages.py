@@ -5,7 +5,7 @@ Output: docs/index.html (self-contained, no build step required).
 
 GitHub sync:
 - Public config is stored in docs/github_config.json (committed to repo).
-- PAT is never stored in the repo; user enters it once in the UI (localStorage only).
+- Auth uses GitHub OAuth Device Flow: user approves once, token stored in localStorage.
 - After learning a new entity, the site automatically attempts to sync to GitHub.
 - Sync is append-only: only NEW entities are added; remote data is never overwritten or deleted.
 - Protection: rate limiting, dedup, preview, confirmation, size cap.
@@ -395,9 +395,7 @@ HTML = f"""<!DOCTYPE html>
 
   async function fetchRemoteDB(config) {{
     const url = getGitHubApiUrl(config);
-    const pat = getGitHubConfig()?.pat;
-    const headers = {{}};
-    if (pat) headers.Authorization = `token ${{pat}}`;
+    const headers = getGitHubAuthHeader();
     const res = await fetch(url, {{ headers }});
     if (!res.ok) {{
       if (res.status === 404) return null;
@@ -412,14 +410,13 @@ HTML = f"""<!DOCTYPE html>
   async function pushRemoteDB(config, mergedEntities) {{
     const url = getGitHubApiUrl(config);
     const list = Array.isArray(mergedEntities) ? mergedEntities : Object.values(entities);
-    const pat = getGitHubConfig()?.pat;
-    if (!pat) throw new Error('GitHub PAT missing. Open GitHub Settings to configure.');
+    const headers = {{ ...getGitHubAuthHeader(), 'Content-Type': 'application/json' }};
+    const token = getGitHubToken();
+    if (!token) throw new Error('GitHub not connected. Open GitHub settings to authorize.');
 
     let remoteSHA = null;
     try {{
-      const res = await fetch(url, {{
-        headers: {{ Authorization: `token ${{pat}}` }}
-      }});
+      const res = await fetch(url, {{ headers }});
       if (res.ok) {{
         const data = await res.json();
         remoteSHA = data.sha;
@@ -435,10 +432,7 @@ HTML = f"""<!DOCTYPE html>
 
     const putRes = await fetch(url, {{
       method: 'PUT',
-      headers: {{
-        Authorization: `token ${{pat}}`,
-        'Content-Type': 'application/json',
-      }},
+      headers,
       body: JSON.stringify(payload),
     }});
 
@@ -463,6 +457,13 @@ HTML = f"""<!DOCTYPE html>
     }}
 
     ghConfig = config;
+    const token = getGitHubToken();
+    if (!token) {{
+      document.getElementById('stat-gh').textContent = 'n/a';
+      setStatus('GitHub: not connected');
+      return;
+    }}
+
     setStatus('Loading database from GitHub...');
     try {{
       const remote = await fetchRemoteDB(config);
@@ -505,9 +506,9 @@ HTML = f"""<!DOCTYPE html>
       return;
     }}
 
-    const pat = getGitHubConfig()?.pat;
-    if (!pat) {{
-      setStatus('GitHub sync skipped: no PAT');
+    const token = getGitHubToken();
+    if (!token) {{
+      setStatus('GitHub sync skipped: not connected');
       return;
     }}
 
@@ -546,13 +547,14 @@ HTML = f"""<!DOCTYPE html>
 
   function showGitHubSettings() {{
     const saved = getGitHubConfig() || {{}};
+    const token = getGitHubToken();
     const area = document.getElementById('main-area');
     area.innerHTML = `
-      <div class="guess">GitHub Sync Settings</div>
+      <div class="guess">GitHub Sync</div>
       <p class="meta">
         Public config is loaded from <b>github_config.json</b> in this repo.
-        Enter your classic PAT with <b>repo</b> scope below.
-        The PAT is stored only in your browser localStorage and is never exposed in the repo.
+        Connect once with GitHub OAuth to enable auto-sync.
+        The token is stored only in your browser localStorage.
       </p>
       <div class="grid">
         <div>
@@ -571,21 +573,27 @@ HTML = f"""<!DOCTYPE html>
           <label class="meta">File Path</label>
           <input type="text" id="gh-path" value="${{saved.path || ghConfig?.path || 'database.json'}}" placeholder="database.json">
         </div>
-        <div style="grid-column: 1 / -1;">
-          <label class="meta">Personal Access Token (PAT) — repo scope required</label>
-          <input type="password" id="gh-pat" value="${{saved.pat || ''}}" placeholder="ghp_...">
-        </div>
       </div>
       <div style="margin-top:14px;">
-        <button class="btn" onclick="saveGitHubSettings()">Save Settings</button>
+        ${{token
+          ? '<button class="btn" onclick="disconnectGitHub()">Disconnect GitHub</button>'
+          : '<button class="btn" onclick="startGitHubDeviceFlow()">Connect GitHub</button>'}}
+        <button class="btn secondary" onclick="saveGitHubSettings()">Save Settings</button>
         <button class="btn secondary" onclick="autoloadGitHub()">Reload from GitHub</button>
         <button class="btn secondary" onclick="showAbout()">Back</button>
       </div>
-      <p class="meta warn" style="margin-top:10px;">
-        Warning: never share your PAT. If exposed, revoke it in GitHub Settings → Developer settings → Personal access tokens.
+      <p class="meta ok" style="margin-top:10px;">
+        Status: ${{token ? 'Connected' : 'Not connected'}}
       </p>
     `;
     setStatus('GitHub Settings');
+  }}
+
+  function disconnectGitHub() {{
+    clearGitHubToken();
+    document.getElementById('stat-gh').textContent = 'off';
+    setStatus('GitHub disconnected');
+    showGitHubSettings();
   }}
 
   function saveGitHubSettings() {{
@@ -593,14 +601,13 @@ HTML = f"""<!DOCTYPE html>
     const repo = document.getElementById('gh-repo').value.trim();
     const branch = document.getElementById('gh-branch').value.trim() || 'main';
     const path = document.getElementById('gh-path').value.trim() || 'database.json';
-    const pat = document.getElementById('gh-pat').value.trim();
 
     if (!owner || !repo) {{
       alert('Owner and repo are required.');
       return;
     }}
 
-    saveGitHubConfig({{ owner, repo, branch, path, pat }});
+    saveGitHubConfig({{ owner, repo, branch, path }});
     ghConfig = {{ owner, repo, branch, path }};
     setStatus('GitHub settings saved');
     autoloadGitHub();
