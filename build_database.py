@@ -938,6 +938,24 @@ def main():
     if unknown:
         print("WARNING: probs reference unknown question ids:", unknown)
 
+    extra_entities = [
+        dict(id="the_guy_that_always_press_yes", name="The guy that always press yes", category="crowdsourced",
+             aliases=[], notes="Matches when the player always answers yes.",
+             probs={qid: 1.0 for qid in question_ids}),
+        dict(id="the_guy_that_always_press_probably", name="The guy that always press probably", category="crowdsourced",
+             aliases=[], notes="Matches when the player always answers probably.",
+             probs={qid: 0.75 for qid in question_ids}),
+        dict(id="the_guy_that_always_press_dont_know", name="The guy that always press dont_know", category="crowdsourced",
+             aliases=[], notes="Matches when the player always answers dont_know.",
+             probs={qid: 0.5 for qid in question_ids}),
+        dict(id="the_guy_that_always_press_probably_not", name="The guy that always press probably_not", category="crowdsourced",
+             aliases=[], notes="Matches when the player always answers probably not.",
+             probs={qid: 0.25 for qid in question_ids}),
+        dict(id="the_guy_that_always_press_no", name="The guy that always press no", category="crowdsourced",
+             aliases=[], notes="Matches when the player always answers no.",
+             probs={qid: 0.0 for qid in question_ids}),
+    ]
+
     out = {
         "questions": questions,
         "entities": [
@@ -949,7 +967,7 @@ def main():
                 "notes": e.get("notes", ""),
                 "probs": e["probs"],
             }
-            for e in ENTITIES
+            for e in ENTITIES + extra_entities
         ],
     }
 

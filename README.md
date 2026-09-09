@@ -1,10 +1,8 @@
 # Guessly — 20-Questions Game Engine
 
-<p align="left">
-  <a href="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/bandit.yml"><img src="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/bandit.yml/badge.svg" alt="Bandit"></a>
-  <a href="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/semgrep.yml"><img src="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/semgrep.yml/badge.svg" alt="Semgrep"></a>
-  <a href="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/osv-scanner.yml"><img src="https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/osv-scanner.yml/badge.svg" alt="OSV"></a>
-</p>
+[![Bandit](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/bandit.yml/badge.svg)](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/bandit.yml)
+[![Semgrep](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/semgrep.yml/badge.svg)](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/semgrep.yml)
+[![OSV](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/enis1enis2/Akinator-Game-edition/actions/workflows/osv-scanner.yml)
 
 Akinator-style guessing game built around an entropy-based 20-questions engine. Think of a character from video games, movies, anime, or comics — the engine asks yes/no/probably questions and guesses who you’re thinking of.
 
@@ -13,17 +11,20 @@ No ML, no LLM, no GPU required. Just a probabilistic decision engine over a shar
 ## Play
 
 ### CLI
+
 ```bash
 python play.py
 ```
 
 ### Web UI
+
 ```bash
 python app.py
 # Open http://127.0.0.1:5000
 ```
 
 ### GitHub Pages
+
 Open `docs/index.html` directly, or serve the `docs/` folder via GitHub Pages. Connect GitHub once via OAuth Device Flow and learned entities auto-sync back to the repo.
 
 ## How It Works
@@ -46,7 +47,7 @@ Open `docs/index.html` directly, or serve the `docs/` folder via GitHub Pages. C
 
 ## Project Structure
 
-```
+```text
 ├── app.py                 # Flask web server
 ├── build_database.py      # Seed DB generator
 ├── build_gh_pages.py      # Static site builder

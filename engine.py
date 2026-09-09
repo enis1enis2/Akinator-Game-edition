@@ -40,9 +40,12 @@ ANSWER_WEIGHTS = {
 
 VALID_ANSWERS = tuple(ANSWER_WEIGHTS.keys())
 
-DEFAULT_CONFIDENCE_THRESHOLD = 0.62
+DEFAULT_CONFIDENCE_THRESHOLD = 0.55
 DEFAULT_MAX_QUESTIONS = 25
 MIN_QUESTIONS_BEFORE_GUESS = 6
+LIKELIHOOD_SHARPNESS = 2.5
+UNKNOWN_PENALTY = 0.85
+MARGIN_RATIO = 1.4
 
 
 @dataclass
@@ -112,7 +115,13 @@ class GuesslyEngine:
         candidates = [qid for qid in self.questions if qid not in self.asked]
         if not candidates:
             return None
-        scored = sorted(candidates, key=self._entropy_score, reverse=True)
+        live_candidates = [qid for qid in candidates if any(
+            eid not in self.eliminated and self.entities[eid].probs.get(qid) is not None
+            for eid in self.belief
+        )]
+        if not live_candidates:
+            return None
+        scored = sorted(live_candidates, key=self._entropy_score, reverse=True)
         top_n = scored[:5] if len(scored) >= 5 else scored
         top_scores = [self._entropy_score(q) for q in top_n]
         best = max(top_scores)
@@ -120,7 +129,16 @@ class GuesslyEngine:
         chosen = random.choice(near_best)
         return self.questions[chosen]
 
-    # ---------- belief update ----------
+    def _likelihood(self, ent_prob: float | None, weight: float) -> float:
+        """
+        Compute how likely this entity is to produce the given answer.
+        Uses a sharper-than-linear curve to better discriminate between
+        strong matches and weak matches.
+        """
+        if ent_prob is None:
+            return UNKNOWN_PENALTY
+        distance = abs(ent_prob - weight)
+        return max(0.02, 1.0 - LIKELIHOOD_SHARPNESS * distance * distance)
 
     def answer(self, question_id: str, answer: str) -> None:
         if answer not in VALID_ANSWERS:
@@ -129,8 +147,8 @@ class GuesslyEngine:
         self.history.append((question_id, answer))
 
         weight = ANSWER_WEIGHTS[answer]
-        if weight is None:  # dont_know: no information, just skip
-            return
+        if weight is None:  # dont_know: treat as neutral uncertainty
+            weight = 0.5
 
         updated = {}
         total = 0.0
@@ -139,14 +157,7 @@ class GuesslyEngine:
                 updated[eid] = 0.0
                 continue
             ent_prob = self.entities[eid].probs.get(question_id)
-            if ent_prob is None:
-                # Unknown for this entity: treat as neutral (0.5) so it
-                # neither strongly helped nor hurt.
-                ent_prob = 0.5
-            # Likelihood the entity would produce this answer: closeness
-            # between stored probability and the player's implied weight.
-            likelihood = 1.0 - abs(ent_prob - weight)
-            likelihood = max(likelihood, 0.02)  # never fully zero out
+            likelihood = self._likelihood(ent_prob, weight)
             new_p = p * likelihood
             updated[eid] = new_p
             total += new_p
@@ -172,15 +183,22 @@ class GuesslyEngine:
     def should_guess(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD) -> bool:
         if len(self.asked) < MIN_QUESTIONS_BEFORE_GUESS:
             return False
-        top = self.top_candidates(1)
-        if not top:
+        top = self.top_candidates(2)
+        if not top or len(top) < 2:
             return False
-        return top[0][1] >= confidence_threshold
+        best_prob = top[0][1]
+        second_prob = top[1][1]
+        # Require both absolute confidence and a clear margin over the runner-up.
+        return best_prob >= confidence_threshold and best_prob >= second_prob * MARGIN_RATIO
 
     def is_exhausted(self, max_questions: int = DEFAULT_MAX_QUESTIONS) -> bool:
-        return len(self.asked) >= max_questions or not any(
-            qid not in self.asked for qid in self.questions
-        )
+        if len(self.asked) >= max_questions:
+            return True
+        if not any(qid not in self.asked for qid in self.questions):
+            return True
+        if not any(eid not in self.eliminated for eid in self.belief):
+            return True
+        return False
 
 
 # ---------- data loading ----------

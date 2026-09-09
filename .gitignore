@@ -50,6 +50,7 @@ htmlcov/
 .nox/
 nosetests.xml
 test-results/
+.python-version
 
 # Lint / type-check caches
 .mypy_cache/
