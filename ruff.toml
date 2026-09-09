@@ -16,6 +16,10 @@ ignore = [
     "E731",   # lambda assignment
     "E741",   # ambiguous variable name
     "C408",   # unnecessary dict() call - intentional in build_database.py
+    "PLR2004", # magic value comparisons - acceptable in tests and dev tools
+    "PLR0912", # too many branches - acceptable in CLI main()
+    "PLR0915", # too many statements - acceptable in CLI main()
+    "PLC0415", # import not at top - acceptable for lazy imports
 ]
 
 [lint.per-file-ignores]

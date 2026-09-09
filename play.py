@@ -17,6 +17,7 @@ from engine import (
     Entity,
     GuesslyEngine,
     load_database,
+    save_database,
 )
 
 DB_PATH = Path(__file__).parent / "database.json"
@@ -116,8 +117,6 @@ def main() -> int:
 
 
 def learn_from_feedback(engine: GuesslyEngine, name: str, db_path: Path) -> None:
-    from engine import save_database
-
     entity_id = name.lower().replace(" ", "_")
     if entity_id in engine.entities:
         target = engine.entities[entity_id]
