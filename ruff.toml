@@ -1,0 +1,29 @@
+[lint]
+select = [
+    "F",      # pyflakes
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "SIM",    # simplify
+    "BLE",    # flake8-blind-except
+    "PL",     # pylint
+]
+
+ignore = [
+    "E501",   # line too long
+    "E701",   # multiple statements on one line
+    "E731",   # lambda assignment
+    "E741",   # ambiguous variable name
+    "C408",   # unnecessary dict() call - intentional in build_database.py
+]
+
+[lint.per-file-ignores]
+"build_database.py" = ["C408", "E501"]
+"build_gh_pages.py" = ["E501"]
+"docs/index.html" = ["E501"]
+"templates/index.html" = ["E501"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

@@ -4,12 +4,11 @@ Shared pytest fixtures for Guessly tests.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
-from engine import GuesslyEngine, load_database, Entity, Question
+from engine import Entity, GuesslyEngine, Question, load_database
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "database.json"

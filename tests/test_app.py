@@ -35,19 +35,25 @@ class TestFlaskRoutes:
 
     def test_answer_valid_json(self, client):
         client.post("/api/reset")
-        resp = client.post("/api/answer", json={"question_id": "q_fictional", "answer": "yes"})
+        resp = client.post(
+            "/api/answer", json={"question_id": "q_fictional", "answer": "yes"}
+        )
         assert resp.status_code == 200
 
     def test_answer_all_valid_answers(self, client):
         answers = ["yes", "probably", "dont_know", "probably_not", "no"]
         for answer in answers:
             client.post("/api/reset")
-            resp = client.post("/api/answer", json={"question_id": "q_fictional", "answer": answer})
+            resp = client.post(
+                "/api/answer", json={"question_id": "q_fictional", "answer": answer}
+            )
             assert resp.status_code == 200
 
     def test_answer_invalid_answer_returns_400(self, client):
         client.post("/api/reset")
-        resp = client.post("/api/answer", json={"question_id": "q_fictional", "answer": "invalid"})
+        resp = client.post(
+            "/api/answer", json={"question_id": "q_fictional", "answer": "invalid"}
+        )
         assert resp.status_code == 400
 
     def test_answer_missing_fields_returns_400(self, client):
@@ -57,7 +63,9 @@ class TestFlaskRoutes:
 
     def test_answer_malformed_json_returns_400(self, client):
         client.post("/api/reset")
-        resp = client.post("/api/answer", data="not json", content_type="application/json")
+        resp = client.post(
+            "/api/answer", data="not json", content_type="application/json"
+        )
         assert resp.status_code == 400
 
     def test_learn_valid_name(self, client):
@@ -71,7 +79,9 @@ class TestFlaskRoutes:
         assert resp.status_code == 400
 
     def test_learn_malformed_json_returns_400(self, client):
-        resp = client.post("/api/learn", data="not json", content_type="application/json")
+        resp = client.post(
+            "/api/learn", data="not json", content_type="application/json"
+        )
         assert resp.status_code == 400
 
 

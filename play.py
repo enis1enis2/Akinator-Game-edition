@@ -10,7 +10,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from engine import GuesslyEngine, load_database, Entity, Question, VALID_ANSWERS, DEFAULT_MAX_QUESTIONS, DEFAULT_CONFIDENCE_THRESHOLD
+from engine import (
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    DEFAULT_MAX_QUESTIONS,
+    VALID_ANSWERS,
+    Entity,
+    GuesslyEngine,
+    load_database,
+)
 
 DB_PATH = Path(__file__).parent / "database.json"
 
@@ -38,8 +45,12 @@ def main() -> int:
 
     while True:
         engine.reset()
-        print(f"\n{YELLOW}Think of a character from video games, movies, anime, or comics...{RESET}")
-        print(f"{YELLOW}I will try to guess who it is in up to {DEFAULT_MAX_QUESTIONS} questions.{RESET}\n")
+        print(
+            f"\n{YELLOW}Think of a character from video games, movies, anime, or comics...{RESET}"
+        )
+        print(
+            f"{YELLOW}I will try to guess who it is in up to {DEFAULT_MAX_QUESTIONS} questions.{RESET}\n"
+        )
 
         while not engine.is_exhausted():
             q = engine.next_question()
@@ -51,13 +62,19 @@ def main() -> int:
 
             top = engine.top_candidates(1)
             if top:
-                print(f"{CYAN}Top candidate: {top[0][0].name} ({top[0][1] * 100:.1f}%){RESET}")
+                print(
+                    f"{CYAN}Top candidate: {top[0][0].name} ({top[0][1] * 100:.1f}%){RESET}"
+                )
             remaining = DEFAULT_MAX_QUESTIONS - len(engine.asked)
             print(f"{YELLOW}Questions remaining: {remaining}{RESET}")
             print(f"{BOLD}Q:{RESET} {q.text}")
-            ans = prompt("([y]es / [p]robably / [d]on't know / [n]o / [p]robably [n]ot)").strip()
+            ans = prompt(
+                "([y]es / [p]robably / [d]on't know / [n]o / [p]robably [n]ot)"
+            ).strip()
             if ans not in VALID_ANSWERS:
-                print(f"{RED}Invalid answer. Use yes, probably, dont_know, probably_not, no.{RESET}")
+                print(
+                    f"{RED}Invalid answer. Use yes, probably, dont_know, probably_not, no.{RESET}"
+                )
                 continue
             engine.answer(q.id, ans)
 
@@ -75,13 +92,17 @@ def main() -> int:
                     print(f"{GREEN}I knew it! System victory.{RESET}")
                 else:
                     print(f"{RED}You defeated me this time.{RESET}")
-                    teach = prompt("Want to teach me who it was? ([y]es / [n]o)").strip()
+                    teach = prompt(
+                        "Want to teach me who it was? ([y]es / [n]o)"
+                    ).strip()
                     if teach in ("y", "yes", "yeah", "yep"):
                         name = input("Enter the character name: ").strip()
                         if name:
                             learn_from_feedback(engine, name, DB_PATH)
             else:
-                print(f"\n{RED}I give up! My best guess was {best_entity.name} ({confidence * 100:.1f}%).{RESET}")
+                print(
+                    f"\n{RED}I give up! My best guess was {best_entity.name} ({confidence * 100:.1f}%).{RESET}"
+                )
                 name = input("Who was your character? ").strip()
                 if name:
                     learn_from_feedback(engine, name, DB_PATH)
@@ -96,6 +117,7 @@ def main() -> int:
 
 def learn_from_feedback(engine: GuesslyEngine, name: str, db_path: Path) -> None:
     from engine import save_database
+
     entity_id = name.lower().replace(" ", "_")
     if entity_id in engine.entities:
         target = engine.entities[entity_id]

@@ -7,7 +7,6 @@ from __future__ import annotations
 import pytest
 
 from engine import (
-    DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_MAX_QUESTIONS,
     MIN_QUESTIONS_BEFORE_GUESS,
     GuesslyEngine,
@@ -86,14 +85,20 @@ class TestEngineAnswer:
 
         # Measure update size for dont_know vs yes
         engine.answer(q.id, "dont_know")
-        dont_know_diff = sum(abs(engine.belief[eid] - initial_belief[eid]) for eid in initial_belief)
+        dont_know_diff = sum(
+            abs(engine.belief[eid] - initial_belief[eid]) for eid in initial_belief
+        )
 
         engine.reset()
         engine.answer(q.id, "yes")
-        yes_diff = sum(abs(engine.belief[eid] - initial_belief[eid]) for eid in initial_belief)
+        yes_diff = sum(
+            abs(engine.belief[eid] - initial_belief[eid]) for eid in initial_belief
+        )
 
         assert q.id in engine.asked
-        assert dont_know_diff < yes_diff, "dont_know should produce smaller belief shift than yes"
+        assert dont_know_diff < yes_diff, (
+            "dont_know should produce smaller belief shift than yes"
+        )
 
     def test_yes_boosts_matching_entities(self, engine):
         q = engine.next_question()

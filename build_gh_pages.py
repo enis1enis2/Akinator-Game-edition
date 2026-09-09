@@ -33,7 +33,7 @@ gh_config = {}
 if GH_CONFIG_PATH.exists():
     try:
         gh_config = json.loads(GH_CONFIG_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (json.JSONDecodeError, OSError):
         gh_config = {}
 
 GH_CONFIG_JSON = json.dumps(gh_config, ensure_ascii=False)

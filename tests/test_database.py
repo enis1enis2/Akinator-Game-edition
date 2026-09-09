@@ -5,12 +5,8 @@ Tests for database loading, saving, and integrity.
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 
-import pytest
-
-from engine import load_database, save_database, Entity, Question
+from engine import load_database, save_database
 
 
 class TestDatabaseLoading:
@@ -46,7 +42,9 @@ class TestDatabaseLoading:
         entities, _ = load_database(db_path)
         for e in entities:
             for qid, prob in e.probs.items():
-                assert 0.0 <= prob <= 1.0, f"Entity {e.id} has invalid prob {prob} for {qid}"
+                assert 0.0 <= prob <= 1.0, (
+                    f"Entity {e.id} has invalid prob {prob} for {qid}"
+                )
 
 
 class TestDatabaseSaving:

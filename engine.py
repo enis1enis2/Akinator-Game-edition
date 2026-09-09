@@ -21,11 +21,9 @@ No ML libraries required — this is a self-contained scoring engine.
 from __future__ import annotations
 
 import json
-import math
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 # Answer values and how they map onto the [0, 1] "yes-ness" scale.
 # "probably"/"probably not" are soft signals; "dont_know" contributes
@@ -80,7 +78,9 @@ class GuesslyEngine:
         self.history: list[tuple[str, str]] = []  # (question_id, answer)
         self.eliminated: set[str] = set()
 
-    def load_state(self, belief: dict[str, float], asked: list[str], history: list[tuple[str, str]]) -> None:
+    def load_state(
+        self, belief: dict[str, float], asked: list[str], history: list[tuple[str, str]]
+    ) -> None:
         self.belief = dict(belief)
         self.asked = list(asked)
         self.history = list(history)
@@ -111,14 +111,19 @@ class GuesslyEngine:
         # Closer to 0.5 => higher score. Distance in [0, 0.5].
         return 0.5 - abs(0.5 - fraction_yes)
 
-    def next_question(self) -> Optional[Question]:
+    def next_question(self) -> Question | None:
         candidates = [qid for qid in self.questions if qid not in self.asked]
         if not candidates:
             return None
-        live_candidates = [qid for qid in candidates if any(
-            eid not in self.eliminated and self.entities[eid].probs.get(qid) is not None
-            for eid in self.belief
-        )]
+        live_candidates = [
+            qid
+            for qid in candidates
+            if any(
+                eid not in self.eliminated
+                and self.entities[eid].probs.get(qid) is not None
+                for eid in self.belief
+            )
+        ]
         if not live_candidates:
             return None
         scored = sorted(live_candidates, key=self._entropy_score, reverse=True)
@@ -178,9 +183,13 @@ class GuesslyEngine:
 
     def top_candidates(self, n: int = 3) -> list[tuple[Entity, float]]:
         ranked = sorted(self.belief.items(), key=lambda kv: kv[1], reverse=True)
-        return [(self.entities[eid], p) for eid, p in ranked[:n] if eid in self.entities]
+        return [
+            (self.entities[eid], p) for eid, p in ranked[:n] if eid in self.entities
+        ]
 
-    def should_guess(self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD) -> bool:
+    def should_guess(
+        self, confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD
+    ) -> bool:
         if len(self.asked) < MIN_QUESTIONS_BEFORE_GUESS:
             return False
         top = self.top_candidates(2)
@@ -189,27 +198,28 @@ class GuesslyEngine:
         best_prob = top[0][1]
         second_prob = top[1][1]
         # Require both absolute confidence and a clear margin over the runner-up.
-        return best_prob >= confidence_threshold and best_prob >= second_prob * MARGIN_RATIO
+        return (
+            best_prob >= confidence_threshold
+            and best_prob >= second_prob * MARGIN_RATIO
+        )
 
     def is_exhausted(self, max_questions: int = DEFAULT_MAX_QUESTIONS) -> bool:
-        if len(self.asked) >= max_questions:
-            return True
-        if not any(qid not in self.asked for qid in self.questions):
-            return True
-        if not any(eid not in self.eliminated for eid in self.belief):
-            return True
-        return False
+        return (
+            len(self.asked) >= max_questions
+            or not any(qid not in self.asked for qid in self.questions)
+            or not any(eid not in self.eliminated for eid in self.belief)
+        )
 
 
 # ---------- data loading ----------
+
 
 def load_database(path: str | Path) -> tuple[list[Entity], dict[str, Question]]:
     path = Path(path)
     data = json.loads(path.read_text(encoding="utf-8"))
 
     questions = {
-        q["id"]: Question(id=q["id"], text=q["text"])
-        for q in data["questions"]
+        q["id"]: Question(id=q["id"], text=q["text"]) for q in data["questions"]
     }
     entities = [
         Entity(
@@ -225,7 +235,9 @@ def load_database(path: str | Path) -> tuple[list[Entity], dict[str, Question]]:
     return entities, questions
 
 
-def save_database(path: str | Path, entities: list[Entity], questions: dict[str, Question]) -> None:
+def save_database(
+    path: str | Path, entities: list[Entity], questions: dict[str, Question]
+) -> None:
     path = Path(path)
     data = {
         "questions": [{"id": q.id, "text": q.text} for q in questions.values()],

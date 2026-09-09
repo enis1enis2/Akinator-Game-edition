@@ -12,12 +12,10 @@ Commands:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-from typing import Optional
 
-from engine import load_database, save_database, Entity, Question
+from engine import Entity, Question, load_database, save_database
 
 DB_PATH = Path(__file__).parent / "database.json"
 
@@ -67,7 +65,10 @@ def cmd_add_entity(_: list[str]) -> int:
         print(f"Entity '{name}' already exists (id={entity_id}).")
         return 1
 
-    category = input("Category (video game / movie / anime / comic / tv / etc): ").strip() or "unknown"
+    category = (
+        input("Category (video game / movie / anime / comic / tv / etc): ").strip()
+        or "unknown"
+    )
     aliases = input("Aliases (comma separated, optional): ").strip()
     alias_list = [a.strip() for a in aliases.split(",") if a.strip()] if aliases else []
     notes = input("Notes (optional): ").strip()
@@ -90,7 +91,14 @@ def cmd_add_entity(_: list[str]) -> int:
         except ValueError:
             print(f"    {RED}Ignored invalid input.{RESET}")
 
-    entity = Entity(id=entity_id, name=name, category=category, probs=probs, aliases=alias_list, notes=notes)
+    entity = Entity(
+        id=entity_id,
+        name=name,
+        category=category,
+        probs=probs,
+        aliases=alias_list,
+        notes=notes,
+    )
     entities.append(entity)
     save_database(DB_PATH, entities, questions)
     print(f"\n{GREEN}Added '{name}' with {len(probs)} traits.{RESET}")
@@ -138,7 +146,9 @@ def cmd_learn(args: list[str]) -> int:
         return 1
 
     print(f"Learning for: {target.name}")
-    print("Enter answers for each question in format: qid=yes|no|probably|probably_not|dont_know")
+    print(
+        "Enter answers for each question in format: qid=yes|no|probably|probably_not|dont_know"
+    )
     print("Leave blank to skip.\n")
 
     q_map = {q.id: q for q in questions}

@@ -9,8 +9,8 @@ probability mass most evenly if they were added to the question bank.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "database.json"
@@ -48,16 +48,46 @@ def suggest_questions(data):
 
     # Generate candidate question templates based on entity attributes
     templates = [
-        ("Does this character have superhuman strength or power?", lambda e: e.get("probs", {}).get("q_strength_focus", 0.5)),
-        ("Is this character known for their intelligence or tech skills?", lambda e: e.get("probs", {}).get("q_intelligence_focus", 0.5)),
-        ("Does this character wear a distinctive costume?", lambda e: e.get("probs", {}).get("q_wears_cape_or_costume", 0.5)),
-        ("Is this character primarily a villain?", lambda e: e.get("probs", {}).get("q_villain", 0.5)),
-        ("Is this character from a recent release (post-2010)?", lambda e: e.get("probs", {}).get("q_recent_character", 0.5)),
-        ("Does this character have a iconic color scheme?", lambda e: e.get("probs", {}).get("q_iconic_color", 0.5)),
-        ("Is this character part of a team or group?", lambda e: e.get("probs", {}).get("q_part_of_team", 0.5)),
-        ("Does this character have a love interest in their story?", lambda e: e.get("probs", {}).get("q_has_love_interest", 0.5)),
-        ("Is this character silent or minimally voiced?", lambda e: e.get("probs", {}).get("q_silent_protagonist", 0.5)),
-        ("Does this character have a sidekick or companion?", lambda e: e.get("probs", {}).get("q_has_sidekick", 0.5)),
+        (
+            "Does this character have superhuman strength or power?",
+            lambda e: e.get("probs", {}).get("q_strength_focus", 0.5),
+        ),
+        (
+            "Is this character known for their intelligence or tech skills?",
+            lambda e: e.get("probs", {}).get("q_intelligence_focus", 0.5),
+        ),
+        (
+            "Does this character wear a distinctive costume?",
+            lambda e: e.get("probs", {}).get("q_wears_cape_or_costume", 0.5),
+        ),
+        (
+            "Is this character primarily a villain?",
+            lambda e: e.get("probs", {}).get("q_villain", 0.5),
+        ),
+        (
+            "Is this character from a recent release (post-2010)?",
+            lambda e: e.get("probs", {}).get("q_recent_character", 0.5),
+        ),
+        (
+            "Does this character have a iconic color scheme?",
+            lambda e: e.get("probs", {}).get("q_iconic_color", 0.5),
+        ),
+        (
+            "Is this character part of a team or group?",
+            lambda e: e.get("probs", {}).get("q_part_of_team", 0.5),
+        ),
+        (
+            "Does this character have a love interest in their story?",
+            lambda e: e.get("probs", {}).get("q_has_love_interest", 0.5),
+        ),
+        (
+            "Is this character silent or minimally voiced?",
+            lambda e: e.get("probs", {}).get("q_silent_protagonist", 0.5),
+        ),
+        (
+            "Does this character have a sidekick or companion?",
+            lambda e: e.get("probs", {}).get("q_has_sidekick", 0.5),
+        ),
     ]
 
     scores = []
@@ -95,7 +125,11 @@ def find_gap_analysis(data):
             coverage[qid] += 1
 
     # Find questions with low coverage
-    low_coverage = [(qid, questions.get(qid, qid), count) for qid, count in coverage.items() if count < 10]
+    low_coverage = [
+        (qid, questions.get(qid, qid), count)
+        for qid, count in coverage.items()
+        if count < 10
+    ]
     low_coverage.sort(key=lambda x: x[2])
 
     if low_coverage:

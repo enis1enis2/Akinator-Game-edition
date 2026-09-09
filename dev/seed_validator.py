@@ -51,7 +51,9 @@ def check_prob_ranges(data):
     for e in data["entities"]:
         for qid, prob in e.get("probs", {}).items():
             if not 0.0 <= prob <= 1.0:
-                print(f"[ERROR] Entity {e['id']} has invalid probability {prob} for {qid}")
+                print(
+                    f"[ERROR] Entity {e['id']} has invalid probability {prob} for {qid}"
+                )
                 valid = False
     if valid:
         print("[OK] All probability values in [0, 1]")

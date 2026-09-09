@@ -20,25 +20,25 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 def run_tests(args=None):
     """Run pytest with the given arguments."""
     cmd = [sys.executable, "-m", "pytest", "tests/"]
-    
+
     if args:
         cmd.extend(args)
-    
+
     print(f"Running: {' '.join(cmd)}")
     print("=" * 60)
-    
-    result = subprocess.run(cmd, cwd=PROJECT_ROOT)
+
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT, check=False)
     return result.returncode
 
 
 def main():
     args = sys.argv[1:]
-    
+
     # Show help if requested
     if "-h" in args or "--help" in args:
         print(__doc__)
         return 0
-    
+
     # Run tests
     return run_tests(args)
 

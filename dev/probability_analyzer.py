@@ -11,8 +11,8 @@ Reports:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "database.json"
@@ -75,7 +75,9 @@ def analyze_questions(data):
         if total == 0:
             continue
         discrimination = max(yes_count, no_count) / total
-        print(f"  {text[:50]:50s} yes={yes_count:3d} no={no_count:3d} neutral={neutral_count:3d} disc={discrimination:.2f}")
+        print(
+            f"  {text[:50]:50s} yes={yes_count:3d} no={no_count:3d} neutral={neutral_count:3d} disc={discrimination:.2f}"
+        )
 
 
 def analyze_coverage(data):
@@ -99,7 +101,9 @@ def analyze_coverage(data):
             q_usage[qid] += 1
 
     q_map = {q["id"]: q["text"] for q in data["questions"]}
-    rarely_used = [(qid, q_map.get(qid, qid), count) for qid, count in q_usage.items() if count < 5]
+    rarely_used = [
+        (qid, q_map.get(qid, qid), count) for qid, count in q_usage.items() if count < 5
+    ]
     rarely_used.sort(key=lambda x: x[2])
 
     print("\nRarely used questions (< 5 entities):")
