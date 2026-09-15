@@ -27,7 +27,7 @@ jobs:
       - name: Run Bandit scan
         run: bandit -r . -f json -o bandit.json --exit-zero
       - name: Upload Bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bandit-report
           path: bandit.json
